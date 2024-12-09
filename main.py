@@ -81,7 +81,7 @@ def __validate_and_format_data__(data, is_encrypting):
     elif aes_mode.lower() == 'cbc':
         aes_mode_num = 2
         
-        # Check for optional IV data
+        # Check for IV data
         try:
             iv = data['iv']['ivValue']
             ivFormat = data['iv']['ivFormat']
