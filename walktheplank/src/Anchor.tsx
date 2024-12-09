@@ -6,7 +6,6 @@ import { piratify, unpiratify } from "./Kraken";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
-import { Key, IV } from "./Kraken";
 
 export type ButtonType = "encrypt" | "decrypt";
 
@@ -34,33 +33,30 @@ export const Anchor = ({
 }: AnchorProps) => {
   const [outputVisible, setOutputVisible] = useState(false);
   const [outputText, setOutputText] = useState("");
+  const [outputIVText, setOutputIVText] = useState("");
   const [inputText, setInputText] = useState("");
-
-  // Updated state variables
-  const [keyInput, setKeyInput] = useState<Key>({
-    keyValue: "",
-    keyFormat: "",
-  });
-
-  const [ivInput, setIVInput] = useState<IV>({
-    ivValue: "",
-    ivFormat: "",
-  });
+  const [keyInput, setKeyInput] = useState("");
+  const [ivInput, setIVInput] = useState("");
 
   const translateToOrFromPirate = async (
     inputText: string,
-    key: Key,
+    key: string,
     aesMode: string,
+    format: string,
     buttonType: ButtonType,
-    iv: IV
+    iv: string
   ) => {
     if (outputVisible) {
       setOutputText("");
     } else {
       if (buttonType === "encrypt") {
-        setOutputText(await piratify(inputText, key, aesMode, iv));
+        const response = await piratify(inputText, key, aesMode, format, iv);
+        console.log(response);
+        setOutputText(response.piratetext);
+        console.log("hello", response.iv);
+        setOutputIVText(response.iv);
       } else {
-        setOutputText(await unpiratify(inputText, key, aesMode, iv));
+        setOutputText(await unpiratify(inputText, key, aesMode, format, iv));
       }
     }
     setOutputVisible(!outputVisible);
@@ -90,7 +86,7 @@ export const Anchor = ({
         : validIVLengths.includes(text.length);
     } else if (format === "base64") {
       const validKeyLengths = [24, 32, 44];
-      const validIVLengths = [24];
+      const validIVLengths = [16];
       return type === "key"
         ? validKeyLengths.includes(text.length)
         : validIVLengths.includes(text.length);
@@ -133,17 +129,13 @@ export const Anchor = ({
           label={KeyInputPlaceholder}
           variant="filled"
           className="w-full mb-4"
-          value={keyInput.keyValue}
-          onChange={(e) =>
-            setKeyInput({ ...keyInput, keyValue: e.target.value })
-          }
+          value={keyInput}
+          onChange={(e) => setKeyInput(e.target.value)}
           error={
-            keyInput.keyValue.length > 0 &&
-            !isValidLength(keyInput.keyValue, "key", utfOrBase64)
+            keyInput.length > 0 && !isValidLength(keyInput, "key", utfOrBase64)
           }
           helperText={
-            keyInput.keyValue.length > 0 &&
-            !isValidLength(keyInput.keyValue, "key", utfOrBase64)
+            keyInput.length > 0 && !isValidLength(keyInput, "key", utfOrBase64)
               ? utfOrBase64 === "utf-8"
                 ? "Key must be 16, 24, or 32 characters long"
                 : "Key must be 24, 32, or 44 characters long"
@@ -166,20 +158,14 @@ export const Anchor = ({
             label="Initialization Vector (IV)"
             variant="filled"
             className="w-full mb-4"
-            value={ivInput.ivValue}
-            onChange={(e) =>
-              setIVInput({ ...ivInput, ivValue: e.target.value })
-            }
+            value={ivInput}
+            onChange={(e) => setIVInput(e.target.value)}
             error={
-              ivInput.ivValue.length > 0 &&
-              !isValidLength(ivInput.ivValue, "iv", utfOrBase64)
+              ivInput.length > 0 && !isValidLength(ivInput, "iv", utfOrBase64)
             }
             helperText={
-              ivInput.ivValue.length > 0 &&
-              !isValidLength(ivInput.ivValue, "iv", utfOrBase64)
-                ? utfOrBase64 === "utf-8"
-                  ? "IV must be 16 characters long"
-                  : "IV must be 24 characters long"
+              ivInput.length > 0 && !isValidLength(ivInput, "iv", utfOrBase64)
+                ? "IV must be 16 characters long"
                 : ""
             }
             sx={{
@@ -198,15 +184,16 @@ export const Anchor = ({
           onClick={() =>
             translateToOrFromPirate(
               inputText,
-              { keyValue: keyInput.keyValue, keyFormat: utfOrBase64 }, // Pass keyInput.keyValue and utfOrBase64
+              keyInput,
               aesMode,
+              utfOrBase64,
               buttonType,
               ivInput
             )
           }
           className="mt-6 px-4 py-2 text-white transition duration-200"
           variant="outlined"
-          disabled={!isValidLength(keyInput.keyValue, "key", utfOrBase64)}
+          disabled={!isValidLength(keyInput, "key", utfOrBase64)}
           startIcon={buttonType === "encrypt" ? <LockIcon /> : <LockOpenIcon />}
           sx={{
             backgroundColor: buttonColor,
@@ -257,7 +244,7 @@ export const Anchor = ({
                 Copy Output
               </Button>
               <Button
-                onClick={() => copyToClipboard(keyInput.keyValue)}
+                onClick={() => copyToClipboard(keyInput)}
                 startIcon={<ContentCopyIcon />}
                 className="mt-2 px-4 py-2 text-white transition duration-200"
                 variant="outlined"
@@ -272,6 +259,41 @@ export const Anchor = ({
                 Copy Key
               </Button>
             </div>
+            <TextField
+              id="filled-basic"
+              label="Output"
+              value={outputIVText}
+              variant="filled"
+              className="w-full mb-4"
+              multiline
+              inputProps={{
+                readOnly: true,
+              }}
+              sx={{
+                backgroundColor: "#e0e0e0",
+                "& .MuiFilledInput-root": {
+                  color: "#37474f",
+                },
+                "& .MuiInputLabel-root": {
+                  color: "#37474f",
+                },
+              }}
+            />
+            <Button
+              onClick={() => copyToClipboard(outputIVText)}
+              className="mt-2 px-4 py-2 text-white transition duration-200"
+              variant="outlined"
+              startIcon={<ContentCopyIcon />}
+              sx={{
+                backgroundColor: buttonColor,
+                color: isSerious ? "#000" : "#fff",
+                "&:hover": {
+                  backgroundColor: isSerious ? "#e0e0e0" : "#45a049",
+                },
+              }}
+            >
+              Copy IV
+            </Button>
           </>
         )}
       </div>

@@ -1,57 +1,94 @@
 import axios from 'axios';
+import { Buffer } from "buffer";
 
 const url = "http://127.0.0.1:5000/";
 
-export type Key = {
-  keyValue: string;
-  keyFormat: string;
+type Format = "utf-8" | "base64";
+
+const generateRandomString = (length: number): string => {
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
 };
 
-export type IV = {
-  ivValue: string;
-  ivFormat: string;
-};
+export interface PiratifyResponse {
+  piratetext: string;
+  iv: string;
+  encodedKey: string;
+}
 
 export async function piratify(
   plainText: string,
-  key: Key,
+  key: string,
   aesMode: string,
-  iv?: IV
-): Promise<string> {
+  format: string,
+  customIV?: string
+): Promise<PiratifyResponse> {
   try {
-    // Determine if iv should be included based on key format
+    let iv: string | undefined;
+    let encodedKey = key;
+
+    // Encode the key to base64 if format is base64
+    if (format === "base64") {
+      encodedKey = Buffer.from(key, "utf-8").toString("base64");
+
+      // Encode customIV to base64 if provided
+      if (customIV) {
+        iv = Buffer.from(customIV, "utf-8").toString("base64");
+      }
+    }
+
+    // Construct the request body
     const requestBody = {
       plaintext: plainText,
-      key: key,
+      key: {
+        keyValue: key,
+        keyFormat: format,
+      },
       aesMode: aesMode,
-      ...(key.keyFormat !== "utf-8" && { iv: iv }), // Only include iv if key format is not utf-8
+      iv: iv ? { ivValue: iv, ivFormat: format } : undefined, // Include IV only if provided
     };
 
-    console.log("Request body:", requestBody);
-
     const response = await axios.post(`${url}piratify`, requestBody);
-    const { piratetext } = response.data;
-    return piratetext;
+
+    const { piratetext, iv: responseIv } = response.data;
+
+    return {
+      piratetext,
+      iv: responseIv,
+      encodedKey,
+    };
   } catch (error) {
     console.error("You don broken the pratification!:", error);
     throw new Error("Arrrr! Woe, it be to the depths with ye!");
   }
 }
 
-
 export async function unpiratify(
   cipherText: string,
-  key: Key,
+  key: string,
   aesMode: string,
-  iv: IV
+  format: string,
+  iv: string
 ): Promise<string> {
   try {
-    const response = await axios.post(`${url}unpiratify`, {
-      ciphertext: cipherText,
-      key: key,
-      aes_mode: aesMode,
-      iv: iv,
-    });
+    const requestBody = {
+      piratetext: cipherText,
+      key: {
+        keyValue: key,
+        keyFormat: format,
+      },
+      aesMode: aesMode,
+      iv: { ivValue: iv, ivFormat: format },
+    };
+
+    console.log("Request Body:", requestBody);
+
+    const response = await axios.post(`${url}unpiratify`, requestBody);
     const { plaintext } = response.data;
     return plaintext;
   } catch (error) {
